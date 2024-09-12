@@ -1,0 +1,121 @@
+#install & load packages
+
+install.packages("tidyverse")
+install.packages("nflfastR")
+install.packages("ggimage")
+install.packages("gt")
+install.packages("gtExtras")
+
+
+library(tidyverse)
+library(nflfastR)
+library(ggimage)
+library(gtExtras)
+
+
+```{r}
+#create new data set for play-by-play data from 2023
+
+pbp<-load_pbp(2023)
+
+nrow(pbp)
+```
+
+```{r}
+#examine our data
+pbp %>% head()
+```
+
+```{r}
+#examine row names
+names(pbp)
+```
+
+```{r}
+#look at smaller sample set of the data
+pbp %>% select(posteam, defteam, down, ydstogo, play_type)
+```
+
+```{r}
+#new data without special teams plays
+#passes and rushes only
+
+
+pbp_rp <- pbp %>% 
+  filter(pass == 1 | rush == 1) %>% 
+  filter(!is.na(epa))
+```
+
+
+```{r}
+#find the lions best rusher in 2023
+
+pbp_rp %>% 
+  filter(posteam == "DET", rush == 1, !is.na(rusher_player_name)) %>% 
+  group_by(rusher_player_name) %>% 
+  summarize(rushes = n(),
+            epa_rush = mean(epa)) %>% 
+  filter(rushes >= 10) %>% 
+  arrange(-epa_rush)
+  
+```
+
+
+```{r}
+#pass vs run efficiency
+
+pass_efficiency <- pbp_rp %>% 
+  filter(season == 2023, pass == 1) %>% 
+  group_by(posteam) %>% 
+  summarize(passes = n(),
+            pass_epa = mean(epa))
+```
+
+
+```{r}
+rush_efficiency <- pbp_rp %>% 
+  filter(season == 2023, rush ==1) %>% 
+  group_by(posteam) %>% 
+  summarize(rushes = n(),
+            rush_epa = mean(epa))
+```
+
+```{r}
+#create a total efficiency dataset
+
+total_eff <- pass_efficiency %>% 
+  left_join(rush_efficiency, by = "posteam")
+```
+
+View(teams_colors_logos)
+
+```{r}
+#left join posteam and team_abbr to match up the datasets
+total_eff <- total_eff %>% 
+  left_join(teams_colors_logos, by = c("posteam" = "team_abbr"))
+```
+
+```{r}
+#create a plot showing EPA per pass/run for each nfl team
+
+total_eff %>% 
+  ggplot(aes(x = pass_epa, y= rush_epa)) +
+  geom_hline(yintercept = mean(total_eff$rush_epa), linetype = "dashed") +
+  geom_vline(xintercept = mean(total_eff$pass_epa), linetype ="dashed")+
+  geom_smooth(method = "lm")+
+  geom_image(aes(image= team_logo_espn), size = 0.05, asp = 16/9) + 
+  theme_bw() + 
+  labs(x = "EPA Per Pass",
+       y = "EPA Per Rush",
+       title = "EPA Per Pass/Run in 2023-24 Season",
+       caption = "By Ryan Grantham")
+```
+
+ggsave('pass-rush-epa-23/24.png', width= 14, height=10, dpi= "retina")
+
+
+
+
+
+
+
